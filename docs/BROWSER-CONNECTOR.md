@@ -90,3 +90,9 @@ Stop it with `launchctl bootout gui/$(id -u)/com.arrisstocrat.api-anything.bridg
 The separate localhost page used for browser validation is a test fixture, not
 part of the service. Other users can run `bridge serve` directly; no service is
 installed merely by downloading this repository.
+
+## Next-stage network support
+
+The [installed-browser network investigation](INSTALLED-BROWSER-NETWORK.md) records
+why network capture and guarded writes are not included yet. Installing developer
+tools or rebuilding a separate WebKit does not modify installed Safari/Orion APIs.
