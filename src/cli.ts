@@ -3,6 +3,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { z } from "zod";
+import { bridgeCall, bridgeStatus, prepareConnector, startBridge } from "./bridge.js";
 import { browserAvailable, closeBrowser, login, ProfileInUse } from "./browser.js";
 import { botWall, emptyResults, loginPath, signInForm } from "./classify.js";
 import { call, heal, type Tier } from "./execute.js";
@@ -46,6 +47,11 @@ const oneLine = (m: string) =>
     .trim();
 
 const HELP: Record<string, string> = {
+  bridge: `api-anything bridge serve | prepare <new-directory> | status | ping <browser-id-or-name> | tabs <browser> | open <browser> <url> | read <browser> <tab-id>
+  Experimental connector for installed browsers with WebExtensions (Safari, Orion and others).
+  prepare creates a PRIVATE paired extension copy; never publish it. serve binds localhost only.
+  Reading a page requires granting that site's access in the extension popup.
+  Guarded capture and learning through the connector are not implemented.`,
   login: `api-anything login <site|url> [--profile "Chrome/Profile 1"] [--window] [--cookies <file>]
   By default imports the site's cookies from your everyday browser (you are almost always already
   signed in there, so no password and no re-doing 2FA). Prints which profile was used and the cookie
@@ -130,6 +136,7 @@ const HELP: Record<string, string> = {
 
 const USAGE = `api-anything ${VERSION}: turn a website into operations an agent can call.
 
+  api-anything bridge serve | prepare <new-directory> | status | ping <browser> | tabs <browser> | open <browser> <url> | read <browser> <tab-id>
   api-anything login <site|url> [--profile ... | --window | --cookies <file>]
   api-anything logout <site>
   api-anything capture <url> [--steps ...]
@@ -785,7 +792,55 @@ async function cmdMcp({ v }: Parsed): Promise<number> {
 
 type Flag = keyof typeof OPTIONS;
 /** Each command and the flags it takes: run() refuses any other, so none is silently ignored. */
+async function cmdBridge({ pos }: Parsed): Promise<number> {
+  const [action, peer, tab] = pos;
+  if (action === "prepare" && peer) {
+    out({
+      ok: true,
+      extension: prepareConnector(peer),
+      private: true,
+      next: "Load this private extension copy in your browser, then run api-anything bridge serve",
+    });
+    return 0;
+  }
+  if (action === "serve") {
+    const bridge = await startBridge();
+    out({
+      ok: true,
+      transport: "localhost",
+      port:
+        bridge.server.address() && typeof bridge.server.address() === "object"
+          ? (bridge.server.address() as { port: number }).port
+          : undefined,
+    });
+    const stop = () => void bridge.close().then(() => process.exit(0));
+    process.once("SIGINT", stop);
+    process.once("SIGTERM", stop);
+    return -1;
+  }
+  if (action === "status") {
+    out({ ok: true, browsers: await bridgeStatus() });
+    return 0;
+  }
+  if (["ping", "tabs", "open", "read"].includes(action) && peer) {
+    if (action === "open" && (!tab || !/^https?:\/\//.test(tab)))
+      throw new Fail("open requires an HTTP(S) URL", "api-anything bridge --help");
+    if (action === "read" && (!tab || !/^\d+$/.test(tab)))
+      throw new Fail("read requires an exact tab id", "api-anything bridge tabs <browser>");
+    out({
+      ok: true,
+      result: await bridgeCall(peer, {
+        op: action,
+        ...(action === "read" ? { tabId: Number(tab) } : action === "open" ? { url: tab } : {}),
+      }),
+    });
+    return 0;
+  }
+  throw new Fail("unknown bridge action", "api-anything bridge --help");
+}
+
 const COMMANDS: Record<string, { run: (p: Parsed) => number | Promise<number>; flags: Flag[] }> = {
+  bridge: { run: cmdBridge, flags: [] },
   login: { run: cmdLogin, flags: ["profile", "window", "cookies"] },
   logout: { run: cmdLogout, flags: [] },
   capture: { run: cmdCapture, flags: ["steps", "soft-from", "example", "write", "limit", "outline"] },

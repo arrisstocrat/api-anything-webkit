@@ -98,3 +98,12 @@ install `SKILL.md` from the path above.
   Anything call?", or "Turn <a website> into an API for me."
 - If no Chromium browser (Chrome, Brave, Edge, Chromium, …) is there, they need one before
   teaching new sites. Any works; `API_ANYTHING_BROWSER` names a non-default one.
+
+## Optional: connect installed browsers
+
+For an explicitly requested connection to installed Safari or Orion, follow
+[the browser connector setup](docs/BROWSER-CONNECTOR.md). This is an experimental
+WebExtension transport for tab listing, opening pages and permitted DOM reads.
+It does not replace the capture/learning/replay backend. Do not select an installed
+Safari or Orion executable as a Playwright browser. The paired extension copy is
+private; each user must prepare their own copy locally.

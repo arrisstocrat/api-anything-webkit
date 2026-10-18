@@ -266,3 +266,14 @@ site.
 `api-anything export <site> --out site.json` writes a copy without examples (`--keep-examples` keeps
 public ones, so `verify` works for others). It refuses if a live cookie or session value is still
 inside the spec. To contribute a spec, see CONTRIBUTING.md in the repo.
+
+## Installed-browser connector (experimental, separate from the replay backend)
+
+If the user explicitly wants the installed Safari/Orion session, check
+`api-anything bridge status`. Use `bridge ping <name-or-id>`, `bridge tabs <name-or-id>`,
+`bridge open <name-or-id> <http(s)-url>`, or `bridge read <name-or-id> <tab-id>`.
+Read requires the browser's per-site permission. Do not disclose unrelated private tabs
+when showing results. Do not claim the connector supports capture/learning, request
+replay, healing, guarded triggers or writes; those remain on the existing backend.
+Do not change API_ANYTHING_BROWSER to an installed Safari/Orion executable.
+Prepared connector directories contain private pairing tokens and must never be shared.

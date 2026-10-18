@@ -79,3 +79,9 @@ suite; set `API_ANYTHING_BROWSER` to a working Chromium executable before runnin
 A standalone, localhost-only reproduction and the attempted fixes are documented in
 [WebKit interception investigation](WEBKIT-INTERCEPTION.md). The redirect issue is unresolved;
 the published backend keeps guarded runs disabled.
+
+## Installed Safari and Orion
+
+A separate [experimental connector](BROWSER-CONNECTOR.md) supports connection checks,
+tab listing, opening pages and permitted DOM reads in the installed browsers. It is
+independent of this Playwright backend and does not yet supply capture/learning or replay.

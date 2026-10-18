@@ -749,3 +749,13 @@ independent alternative.
 TLS impersonation transports, CAPTCHA solving, signature reimplementation, seroval parsing,
 a hosted registry or marketplace, typed-client codegen, and Windows app-bound cookie decryption
 (login falls back to `--window` there).
+
+## Installed-browser connector experiment
+
+The `bridge` command offers a separate authenticated localhost transport for WebExtensions.
+It does not replace the browser backend or claim capture/write parity. The paired installation
+copy contains a private browser token; it must never be exported. A separate private client token
+authorizes CLI requests. Peers are explicit, ambiguous names fail, commands are delivered once,
+and dispatched commands are never automatically retried. Web origins and non-loopback Host values
+are rejected. The extension supports connection checks, tab listing and explicitly permitted DOM
+reads; per-origin grants are requested from its popup. Guarded capture and writes are refused.
