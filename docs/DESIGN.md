@@ -759,3 +759,12 @@ authorizes CLI requests. Peers are explicit, ambiguous names fail, commands are 
 and dispatched commands are never automatically retried. Web origins and non-loopback Host values
 are rejected. The extension supports connection checks, tab listing and explicitly permitted DOM
 reads; per-origin grants are requested from its popup. Guarded capture and writes are refused.
+
+
+The connector can observe top-frame GET/HEAD fetch/XHR after explicit capture-start
+on a permitted tab. Page-world wrappers never block, repeat, or authorize requests.
+They restore original functions on stop/expiry. CSP refusal and navigation loss are
+explicit failures. Bounded page-visible exchanges (not full wire traffic) are
+validated and saved as private captures for the unchanged two-example learner.
+Cookies/storage are absent; direct HTTP replay of public reads is supported.
+This does not provide write guards or automatic browser-session replay/healing.

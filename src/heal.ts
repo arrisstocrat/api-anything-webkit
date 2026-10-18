@@ -374,7 +374,7 @@ export interface CaptureFile extends CaptureResult {
 const captureFile = (id: string) => join(home(), "captures", `${safeName(id)}.json`);
 let lastId = "";
 
-function saveCapture(
+export function saveCapture(
   o: { url: string; steps?: TriggerStep[]; softFrom?: string; write?: boolean },
   r: CaptureResult,
 ): CaptureFile {

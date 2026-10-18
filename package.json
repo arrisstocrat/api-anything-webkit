@@ -1,6 +1,6 @@
 {
   "name": "api-anything",
-  "version": "0.1.0-webkit.2",
+  "version": "0.1.0-webkit.3",
   "description": "Independent API Anything fork with optional Playwright WebKit support (partial feature coverage).",
   "license": "MIT",
   "type": "module",

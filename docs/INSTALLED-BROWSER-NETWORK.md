@@ -1,7 +1,8 @@
 # Installed-browser network investigation
 
 The installed-browser connector is verified for tab operations and permitted DOM
-reads. This does not establish API Anything traffic capture or guarded writes.
+reads. Version 0.1.0-webkit.3 additionally verifies bounded page-level read capture
+and two-example learning in both browsers; this does not establish guarded writes.
 
 The next implementation path was checked against current WebExtensions API data:
 
@@ -22,8 +23,8 @@ Sources checked during implementation:
 [Apple declarative blocking](https://developer.apple.com/documentation/safariservices/blocking-content-with-your-safari-web-extension),
 [Orion API compatibility](https://help.kagi.com/orion/misc/technical.html).
 
-This explains why the released connector does not advertise network capture.
-A page-level fetch/XHR wrapper could observe a subset of traffic, but would miss
+The connector now implements a page-level fetch/XHR observer for read learning
+([workflow](BROWSER-CONNECTOR.md)). It observes a subset of traffic, and misses
 requests sent before injection, workers, other frames, native redirects and unload
 traffic. It must not be treated as a complete guard, nor may DOM snapshots be
 presented as original HTTP exchanges.

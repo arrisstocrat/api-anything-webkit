@@ -4,19 +4,20 @@ The `bridge` transport connects API Anything to installed browsers through a sha
 WebExtension. It is independent of the Playwright backend. It uses the actual
 browser's existing windows and tabs.
 
-**Current scope:** connection checks, listing tabs, opening a new HTTP(S) tab, and
-reading the DOM of an explicitly permitted tab. This is a connector foundation,
-not full API Anything integration: capture/learning, browser request replay,
-healing, guarded triggers and writes are not implemented through this transport.
-The existing Chromium and opt-in Playwright WebKit backends keep their own scope.
-A DOM read is not a captured HTTP response; it is not submitted to the learner as one.
+**Current scope:** tab operations, permitted DOM reads, and read learning from
+GET/HEAD fetch/XHR issued by the top frame after capture starts. Captures are real
+page-visible requests/responses, not DOM snapshots. Two examples feed the existing
+learner; learned operations can then replay using direct HTTP. Browser-session replay,
+automatic browser healing, guarded triggers and writes remain unavailable.
+Cookies, implicit browser headers and browser storage are not exported, so private
+operations needing them cannot yet replay with this transport alone.
 
 ## Compatibility and evidence
 
 | Browser | Evidence |
 | --- | --- |
-| Safari 27.0.1 on macOS 27.0.1 | Extension 0.1.3 installed; actual connection, tab listing and localhost DOM read verified |
-| Orion 1.1.3 on macOS 27.0.1 | Extension 0.1.3 installed; actual connection, tab listing, opening a localhost tab and DOM read verified |
+| Safari 27.0.1 on macOS 27.0.1 | Extension 0.1.4: localhost fetch and XHR captured, two examples learned, unseen value replayed over HTTP (tier 1) |
+| Orion 1.1.3 on macOS 27.0.1 | Extension 0.1.4: localhost XHR and fetch captured, two examples learned, unseen value replayed over HTTP (tier 1) |
 | Other WebKit browsers | Require compatible WebExtensions APIs and testing; not verified |
 | Browsers without a compatible extension or automation interface | No connector available |
 
@@ -94,5 +95,51 @@ installed merely by downloading this repository.
 ## Next-stage network support
 
 The [installed-browser network investigation](INSTALLED-BROWSER-NETWORK.md) records
-why network capture and guarded writes are not included yet. Installing developer
+the limits of page-level network capture and why guarded writes are not included. Installing developer
 tools or rebuilding a separate WebKit does not modify installed Safari/Orion APIs.
+
+## Teach a read operation in Safari or Orion
+
+Use an exact tab id and grant that host in the popup. Start on the site's already
+loaded page. Capture expires after five minutes; navigating the document ends it.
+Perform only the desired read/search in this tab after starting:
+
+```sh
+api-anything bridge capture-start Safari 123
+# Perform a read with input alpha in the selected tab.
+api-anything bridge capture-status Safari 123
+api-anything bridge capture-stop Safari 123
+# Keep the returned capture id as FIRST.
+api-anything bridge capture-start Safari 123
+# Perform the same read with input bravo.
+api-anything bridge capture-stop Safari 123
+# Keep the returned capture id as SECOND.
+api-anything add my-site search --from FIRST --from2 SECOND --example q=alpha --example2 q=bravo --extract items
+api-anything call my-site search q=charlie
+```
+
+Replace the input name and extraction path with those of the captured request.
+`inspect FIRST --outline --example q=alpha` helps choose the request/recipe.
+There is no automatic UI trigger recording; a missing trigger parameter warning
+means automatic recapture/healing is unavailable for that operation.
+
+The observer uses a packaged page script. A site's CSP can block it; start then
+fails explicitly. Requests before injection, saved original fetch references,
+workers, frames, document loads, streams over 256 KB, binary/opaque responses and
+intermediate redirect hops are outside coverage. Maximum 40 exchanges and about
+1 MB total are kept. Stop waits briefly for outstanding fetches, not unfinished
+XHRs; wait for the visible search result before stopping.
+The wrapper observes only GET/HEAD and does not prevent any request. Method alone
+does not prove absence of side effects: **never use this as write protection**.
+The page can interfere with the hook or forge records. They are untrusted data,
+validated on import; the page never receives the bridge pairing token.
+Captures are private (0600), pruned by the existing capture retention policy.
+
+Validation on this Mac: Safari examples alpha/bravo returned charlie; Orion
+examples alpha/bravo returned delta, both with `class: ok`, `tier: 1`. This proves
+the local read-learning path, not compatibility with every site's authentication.
+
+Reproduce the local browser test with `node examples/bridge-read-fixture.mjs`, open
+`http://127.0.0.1:18667/` in each browser and use the capture workflow above. The
+page has fetch and XHR search buttons with a `q` input; its response recipe is
+`--extract items`. Stop the fixture with Ctrl+C. It stores no account data.

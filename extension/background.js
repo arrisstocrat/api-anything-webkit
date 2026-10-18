@@ -26,7 +26,7 @@ async function command(c) {
     return {
       userAgent: navigator.userAgent,
       version: api.runtime.getManifest().version,
-      capabilities: { tabs: true, pageRead: true, guardedCapture: false },
+      capabilities: { tabs: true, pageRead: true, readCapture: true, guardedCapture: false },
     };
   if (c.op === "name") {
     if (typeof c.name !== "string" || !c.name.trim() || c.name.length > 80) throw new Error("invalid connection name");
@@ -41,8 +41,10 @@ async function command(c) {
   }
   if (c.op === "tabs")
     return (await deadline(api.tabs.query({}), "tabs.query")).map(({ id, title, url }) => ({ id, title, url }));
-  if (c.op !== "read")
-    throw new Error("This connector currently supports ping, tabs, open and read. Guarded operations are unavailable.");
+  if (!["read", "capture-start", "capture-status", "capture-stop"].includes(c.op))
+    throw new Error(
+      "This connector supports ping, tabs, open, read and read capture. Guarded operations are unavailable.",
+    );
   if (!Number.isInteger(c.tabId)) throw new Error("read requires an exact tabId");
   const tab = await deadline(api.tabs.get(c.tabId), "tabs.get");
   const parsed = new URL(tab.url);
@@ -51,6 +53,27 @@ async function command(c) {
   if (!/^https?:/.test(origin)) throw new Error("Only HTTP(S) pages can be read");
   if (!(await deadline(api.permissions.contains({ origins: [permission] }), "permissions.contains")))
     throw new Error("Grant access to this site's origin using the connector popup first");
+  const inject = async (file) => (await deadline(api.tabs.executeScript(c.tabId, { file }), "tabs.executeScript"))[0];
+  if (c.op === "capture-stop") {
+    await inject("capture-stop.js");
+    for (let n = 0; n < 20; n++) {
+      const status = await inject("capture-status.js");
+      if (status.stopped) return inject("capture-result.js");
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error("Capture did not stop; no result saved");
+  }
+  if (c.op === "capture-status") return inject("capture-status.js");
+  if (c.op === "capture-start") {
+    await inject("capture-start.js");
+    for (let n = 0; n < 15; n++) {
+      const status = await inject("capture-status.js");
+      if (status.ready) return status;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    await inject("capture-cancel.js");
+    throw new Error("Capture hook was blocked (possibly by the site's CSP); no requests captured");
+  }
   const results = await deadline(api.tabs.executeScript(c.tabId, { file: "read.js" }), "tabs.executeScript");
   return results[0];
 }

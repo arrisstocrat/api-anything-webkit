@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import { bridgeCall, bridgeStatus, prepareConnector, startBridge } from "./bridge.js";
+import { parseReadCapture } from "./bridge-capture.js";
 import { browserAvailable, closeBrowser, login, ProfileInUse } from "./browser.js";
 import { botWall, emptyResults, loginPath, signInForm } from "./classify.js";
 import { call, heal, type Tier } from "./execute.js";
@@ -17,6 +18,7 @@ import {
   loadCapture,
   PROFILE_HINT,
   profileDir,
+  saveCapture,
   unplaced,
 } from "./heal.js";
 import { buildRequest } from "./http.js";
@@ -51,7 +53,8 @@ const HELP: Record<string, string> = {
   Experimental connector for installed browsers with WebExtensions (Safari, Orion and others).
   prepare creates a PRIVATE paired extension copy; never publish it. serve binds localhost only.
   Reading a page requires granting that site's access in the extension popup.
-  Guarded capture and learning through the connector are not implemented.`,
+  capture-start <browser> <tab-id>, then perform a read in that tab, then capture-stop <browser> <tab-id>.
+  Captures observe top-frame GET/HEAD fetch/XHR after start; navigation ends capture. No write guard.`,
   login: `api-anything login <site|url> [--profile "Chrome/Profile 1"] [--window] [--cookies <file>]
   By default imports the site's cookies from your everyday browser (you are almost always already
   signed in there, so no password and no re-doing 2FA). Prints which profile was used and the cookie
@@ -822,18 +825,30 @@ async function cmdBridge({ pos }: Parsed): Promise<number> {
     out({ ok: true, browsers: await bridgeStatus() });
     return 0;
   }
-  if (["ping", "tabs", "open", "read"].includes(action) && peer) {
+  if (["ping", "tabs", "open", "read", "capture-start", "capture-status", "capture-stop"].includes(action) && peer) {
     if (action === "open" && (!tab || !/^https?:\/\//.test(tab)))
       throw new Fail("open requires an HTTP(S) URL", "api-anything bridge --help");
-    if (action === "read" && (!tab || !/^\d+$/.test(tab)))
+    if (["read", "capture-start", "capture-status", "capture-stop"].includes(action) && (!tab || !/^\d+$/.test(tab)))
       throw new Fail("read requires an exact tab id", "api-anything bridge tabs <browser>");
-    out({
-      ok: true,
-      result: await bridgeCall(peer, {
-        op: action,
-        ...(action === "read" ? { tabId: Number(tab) } : action === "open" ? { url: tab } : {}),
-      }),
+    const result = await bridgeCall(peer, {
+      op: action,
+      ...(["read", "capture-start", "capture-status", "capture-stop"].includes(action)
+        ? { tabId: Number(tab) }
+        : action === "open"
+          ? { url: tab }
+          : {}),
     });
+    if (action === "capture-stop") {
+      const capture = parseReadCapture(result);
+      const saved = saveCapture({ url: capture.finalUrl }, capture);
+      out({
+        ok: true,
+        capture: saved.id,
+        requests: saved.exchanges.length,
+        coverage: "top-frame GET/HEAD fetch/XHR only; no write guard or cookie export",
+        next: `api-anything inspect ${saved.id}`,
+      });
+    } else out({ ok: true, result });
     return 0;
   }
   throw new Fail("unknown bridge action", "api-anything bridge --help");

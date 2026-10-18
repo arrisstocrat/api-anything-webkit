@@ -273,7 +273,10 @@ If the user explicitly wants the installed Safari/Orion session, check
 `api-anything bridge status`. Use `bridge ping <name-or-id>`, `bridge tabs <name-or-id>`,
 `bridge open <name-or-id> <http(s)-url>`, or `bridge read <name-or-id> <tab-id>`.
 Read requires the browser's per-site permission. Do not disclose unrelated private tabs
-when showing results. Do not claim the connector supports capture/learning, request
-replay, healing, guarded triggers or writes; those remain on the existing backend.
+when showing results. For read learning, use bridge capture-start/capture-stop <browser> <tab-id>, then
+add --from FIRST --from2 SECOND --example k=v --example2 k=w and call normally.
+Only top-frame GET/HEAD fetch/XHR after start is observed; navigation ends capture.
+CSP may block it. No cookies/storage are exported. Direct HTTP replay is verified
+on localhost; browser-session replay, healing, guarded triggers and writes are unavailable.
 Do not change API_ANYTHING_BROWSER to an installed Safari/Orion executable.
 Prepared connector directories contain private pairing tokens and must never be shared.

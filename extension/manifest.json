@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "API Anything Connector",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Connect this browser to your local API Anything bridge. Experimental; guarded capture is unavailable.",
   "permissions": ["tabs", "storage", "activeTab", "http://127.0.0.1/*"],
   "optional_permissions": ["http://*/*", "https://*/*"],
@@ -16,5 +16,6 @@
   "options_ui": {
     "page": "popup.html",
     "open_in_tab": true
-  }
+  },
+  "web_accessible_resources": ["page-capture.js"]
 }

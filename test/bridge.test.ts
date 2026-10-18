@@ -108,6 +108,8 @@ test("extension reads only a permitted tab and uses host patterns without TCP po
   allowed = false;
   await assert.rejects(handle({ op: "read", tabId: 1 }), /Grant access/);
   assert.equal(injected, 1);
+  await assert.rejects(handle({ op: "capture-start", tabId: 1 }), /Grant access/);
+  assert.equal(injected, 1);
   await assert.rejects(handle({ op: "write", tabId: 1 }), /unavailable/);
   assert.equal(injected, 1);
 });

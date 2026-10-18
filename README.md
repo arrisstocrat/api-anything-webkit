@@ -4,7 +4,7 @@ An independent fork of [API Anything by Tianjun Zheng](https://github.com/goodni
 
 **WebKit status: initial, partial support.** Read learning, browser fetches, login and session persistence work. Guarded trigger runs, tier 3 and learning writes are disabled until redirect interception is reliable. This uses a separate WebKit browser; it does not control Orion or Safari. [Feature matrix and setup](docs/WEBKIT.md).
 
-**Installed browsers:** a separate experimental [browser connector](docs/BROWSER-CONNECTOR.md) now connects installed Safari and Orion through WebExtensions. Connection checks, tab listing, opening pages and explicitly permitted DOM reads are available. It does not yet provide API Anything capture, learning or replay through those browsers. Other browsers require compatible extension APIs and individual verification.
+**Installed browsers:** a separate experimental [browser connector](docs/BROWSER-CONNECTOR.md) now connects installed Safari and Orion through WebExtensions. Connection checks, tab listing, opening pages and explicitly permitted DOM reads are available. It now captures top-frame GET/HEAD fetch/XHR responses for read learning: capture → learn from two examples → replay over direct HTTP was verified in both browsers. Cookie export, browser-session replay, healing and guarded writes remain unavailable. Other browsers require compatible extension APIs and individual verification.
 
 The demonstrations and benchmarks below are inherited from upstream and are not measurements of this fork or WebKit. [Original README](docs/UPSTREAM-README.md).
 
