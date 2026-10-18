@@ -73,3 +73,9 @@ They exercise actual browser traffic, learning and unseen-input replay, POST cap
 cookie/storage persistence, headed startup, redirects and refusal of guarded runs. The engine-switch
 test also uses the bundled Chromium binary when installed. The existing suite remains a Chromium
 suite; set `API_ANYTHING_BROWSER` to a working Chromium executable before running `npm test`.
+
+## Redirect interception investigation
+
+A standalone, localhost-only reproduction and the attempted fixes are documented in
+[WebKit interception investigation](WEBKIT-INTERCEPTION.md). The redirect issue is unresolved;
+the published backend keeps guarded runs disabled.
