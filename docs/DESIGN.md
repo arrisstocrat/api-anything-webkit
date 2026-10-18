@@ -548,6 +548,13 @@ send a request again (its own scripts, a retry after a navigation or a connectio
 
 ## Browser
 
+- Local fork extension: `API_ANYTHING_BROWSER=webkit` selects Playwright's patched WebKit.
+  It supports unguarded read capture/learning, tier 2 and headed login, using a separate profile
+  and UA cache. Managed close saves WebKit storage state privately because native session cookies
+  do not survive restart. Any trigger with an interceptor is refused before browser startup:
+  the CDP guard below cannot run on WebKit. Orion and Safari are not supported executables.
+  See [WEBKIT.md](WEBKIT.md) for the supported scope and tests.
+
 - Any installed Chromium build, launched by path (no browser download).
   The default order is Google Chrome, then Brave, Microsoft Edge, Chromium, Vivaldi, Arc, each
   probed at its standard install location for the current OS. `API_ANYTHING_BROWSER` overrides

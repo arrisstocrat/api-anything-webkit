@@ -5,6 +5,18 @@ description: Turn a website that only has a GUI into operations you can call dir
 
 # api-anything
 
+## Local WebKit fork
+
+This installation supports Playwright's patched WebKit. When the MCP server is configured with
+`API_ANYTHING_BROWSER=webkit`, prefix CLI commands with `API_ANYTHING_BROWSER=webkit` too, since
+an MCP environment does not automatically apply to the agent's shell. Read capture/learning,
+tier 1, tier 2 and visible login work. Guarded trigger runs (including tier 3, trigger-based healing,
+and write learning) refuse before opening a page; use a Chromium backend if the user needs those.
+Never remove interception to bypass this refusal. This backend does not drive Orion or Safari,
+nor import Orion's browsing session. See the installed `docs/WEBKIT.md` for setup and limitations.
+Use the installed `api-anything` command for this fork: the upstream GitHub `npx` alternative
+below does not include the WebKit changes.
+
 api-anything learns operations from browser captures of the site's own frontend. Calls try direct
 HTTP first, with the browser as fallback when needed (a Chromium build: Chrome by default, or
 Brave/Edge/Chromium/Vivaldi/Arc — any executable named with `API_ANYTHING_BROWSER`). Results

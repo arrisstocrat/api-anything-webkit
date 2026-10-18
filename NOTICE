@@ -1,0 +1,13 @@
+API Anything — WebKit edition
+
+Derived from API Anything by Tianjun Zheng:
+https://github.com/goodnight000/api-anything
+
+Copyright (c) 2026 Tianjun Zheng. Original code is licensed under the MIT License.
+The original copyright and license are preserved in LICENSE.
+
+WebKit support and additional tests are modifications maintained by arrisstocrat:
+https://github.com/arrisstocrat/api-anything-webkit
+
+This fork is independent and is not endorsed by the upstream author, Kagi/Orion,
+Apple/WebKit or Microsoft/Playwright. Dependencies retain their own licenses.

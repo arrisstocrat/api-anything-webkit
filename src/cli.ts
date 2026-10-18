@@ -194,8 +194,8 @@ function stepsOf(text: string | undefined): TriggerStep[] | undefined {
 const needBrowser = () => {
   if (!browserAvailable())
     throw new Fail(
-      "no Chromium browser is installed (Google Chrome, Brave, Edge or Chromium)",
-      "install one, or set API_ANYTHING_BROWSER to the path of any Chromium executable, then retry",
+      "no selected browser is installed (Chromium or Playwright WebKit)",
+      "install a Chromium browser, or run npx playwright-core install webkit and set API_ANYTHING_BROWSER=webkit, then retry",
     );
 };
 

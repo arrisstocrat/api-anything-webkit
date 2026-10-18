@@ -1,6 +1,12 @@
-# API Anything
+# API Anything — WebKit edition
 
-[![CI](https://github.com/goodnight000/api-anything/actions/workflows/ci.yml/badge.svg)](https://github.com/goodnight000/api-anything/actions/workflows/ci.yml)
+An independent fork of [API Anything by Tianjun Zheng](https://github.com/goodnight000/api-anything), with an optional Playwright WebKit backend. Original MIT license and copyright are preserved; see [NOTICE](NOTICE).
+
+**WebKit status: initial, partial support.** Read learning, browser fetches, login and session persistence work. Guarded trigger runs, tier 3 and learning writes are disabled until redirect interception is reliable. This uses a separate WebKit browser; it does not control Orion or Safari. [Feature matrix and setup](docs/WEBKIT.md).
+
+The demonstrations and benchmarks below are inherited from upstream and are not measurements of this fork or WebKit. [Original README](docs/UPSTREAM-README.md).
+
+[![CI](https://github.com/arrisstocrat/api-anything-webkit/actions/workflows/ci.yml/badge.svg)](https://github.com/arrisstocrat/api-anything-webkit/actions/workflows/ci.yml)
 
 **Teach your agent a website once. After that, it calls the site like an API instead of driving a browser.**
 
@@ -25,10 +31,13 @@ half as many tokens, and cost the same or less. All 20 answers were correct.
 
 ## Install
 
+**WebKit fork:** opt-in Playwright WebKit support is available. See [WebKit setup and limits](docs/WEBKIT.md).
+It supports read learning, tier 2 and login windows; guarded runs still require Chromium. It does not drive Orion.
+
 Paste this into Claude Code, Codex or another coding agent:
 
 ```text
-Set up API Anything for me: https://github.com/goodnight000/api-anything/blob/main/INSTALL.md
+Set up API Anything for me: https://github.com/arrisstocrat/api-anything-webkit/blob/main/INSTALL.md
 ```
 
 The agent checks Node 22.13+, builds and installs the `api-anything` command, confirms that a
@@ -41,7 +50,7 @@ something like "What does Goodreads rate Piranesi?"
 The package isn't on npm yet. Don't use `npm install -g github:...`, because it fails under npm 11.
 
 ```sh
-git clone https://github.com/goodnight000/api-anything.git && cd api-anything
+git clone https://github.com/arrisstocrat/api-anything-webkit.git && cd api-anything-webkit
 npm ci && npm install -g "$(npm pack --silent)"
 api-anything call hacker-news search query=sqlite
 ```

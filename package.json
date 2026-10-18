@@ -1,7 +1,7 @@
 {
   "name": "api-anything",
-  "version": "0.1.0",
-  "description": "Learn reusable operations from a website's browser traffic and call them from a CLI, library or MCP server.",
+  "version": "0.1.0-webkit.1",
+  "description": "Independent API Anything fork with optional Playwright WebKit support (partial feature coverage).",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -23,7 +23,8 @@
     "LICENSE",
     "examples",
     "docs/*.md",
-    "CONTRIBUTING.md"
+    "CONTRIBUTING.md",
+    "NOTICE"
   ],
   "engines": {
     "node": ">=22.13.0"
@@ -49,12 +50,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/goodnight000/api-anything.git"
+    "url": "git+https://github.com/arrisstocrat/api-anything-webkit.git"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
     "node-html-parser": "^9.0.4",
-    "playwright-core": "^1.63.0",
+    "playwright-core": "1.63.0",
     "tldts": "^7.4.16",
     "zod": "^4.6.5"
   },
@@ -63,5 +64,9 @@
     "@types/node": "^26.6.3",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
+  },
+  "homepage": "https://github.com/arrisstocrat/api-anything-webkit#readme",
+  "bugs": {
+    "url": "https://github.com/arrisstocrat/api-anything-webkit/issues"
   }
 }

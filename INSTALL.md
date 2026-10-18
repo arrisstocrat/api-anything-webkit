@@ -1,5 +1,10 @@
 # Install API Anything (for an AI agent)
 
+**WebKit edition:** independent fork of [goodnight000/api-anything](https://github.com/goodnight000/api-anything).
+Read the [supported features and limitations](docs/WEBKIT.md) first. WebKit support is partial;
+guarded trigger runs and learning writes require Chromium. This does not control Orion or Safari.
+The commands below install this fork.
+
 A user asked you to set up API Anything. Do these steps in order and stop to tell the user if one
 fails. Everything runs locally and needs no account or API key. Running the steps again updates an
 existing install.
@@ -26,7 +31,7 @@ command (it works in sh, bash and zsh, and removes the clone whether or not it s
 (
   dir="$(mktemp -d)" || exit
   trap 'rm -rf "$dir"' 0
-  git clone -q --depth 1 https://github.com/goodnight000/api-anything.git "$dir" &&
+  git clone -q --depth 1 https://github.com/arrisstocrat/api-anything-webkit.git "$dir" &&
     cd "$dir" &&
     npm ci --no-audit --no-fund &&
     archive="$(npm pack --silent)" &&
@@ -35,8 +40,19 @@ command (it works in sh, bash and zsh, and removes the clone whether or not it s
 ```
 
 A non-zero exit status means the clone, the build or the install failed: stop and show the user
-the output. Don't use `npm install -g github:goodnight000/api-anything`, because it fails under npm 11. If
+the output. Don't use `npm install -g github:arrisstocrat/api-anything-webkit`, because it fails under npm 11. If
 the global install fails with a permission error (EACCES), don't use sudo. Tell the user and stop.
+
+### Select WebKit (optional)
+
+```sh
+node "$(npm root -g)/api-anything/node_modules/playwright-core/cli.js" install webkit
+export API_ANYTHING_BROWSER=webkit
+```
+
+For a WebKit MCP server, add `--env API_ANYTHING_BROWSER=webkit` to the Codex command
+in step 4, or set `"env": {"API_ANYTHING_BROWSER": "webkit"}` in the server entry.
+On Linux, the browser may also need OS dependencies; see Playwright's install guidance.
 
 ## 3. Check that it works
 

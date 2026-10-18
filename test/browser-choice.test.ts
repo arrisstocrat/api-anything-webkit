@@ -33,6 +33,26 @@ describe("browserChoice", () => {
     assert.equal(browserAvailable(), false);
   });
 
+  test("Orion and Safari are rejected instead of launched with the wrong protocol", () => {
+    for (const name of ["orion", "Safari", "/Applications/Orion.app/Contents/MacOS/Orion"]) {
+      process.env.API_ANYTHING_BROWSER = name;
+      assert.throws(() => browserChoice(), /cannot be driven by Playwright/);
+    }
+  });
+
+  test("WebKit resolves to Playwright's installed binary, or reports unavailable", () => {
+    process.env.API_ANYTHING_BROWSER = "webkit";
+    const choice = browserChoice();
+    if (!choice) return assert.equal(browserAvailable(), false);
+    assert.equal(choice.engine, "webkit");
+    assert.equal(choice.name, "Playwright WebKit");
+    assert.ok(existsSync(choice.bin));
+    for (const name of ["WEBKIT", "playwright-webkit", "playwright_webkit"]) {
+      process.env.API_ANYTHING_BROWSER = name;
+      assert.deepEqual(browserChoice(), choice);
+    }
+  });
+
   test("without the variable the first installed browser is chosen, and its name selects it", (t) => {
     const c = browserChoice();
     if (!c) return t.skip("no Chromium browser installed");

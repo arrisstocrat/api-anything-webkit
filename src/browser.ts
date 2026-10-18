@@ -1,19 +1,27 @@
 /**
- * The browser layer: an installed Chromium (Google Chrome by default, or Brave, Edge, Chromium,
- * Vivaldi, Arc, or any `API_ANYTHING_BROWSER`) via playwright-core, one persistent profile per
+ * The browser layer: an installed Chromium or Playwright's WebKit via playwright-core, one persistent profile per
  * process. Produces raw Exchanges for the learner (tier 3 / create / heal) and tier-2 page fetches.
  */
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { closeSync, existsSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { basename, join } from "node:path";
 import { brotliDecompressSync, gunzipSync, inflateSync } from "node:zlib";
 import type { BrowserContext, Cookie, chromium, Frame, Page, Request, Response, Route } from "playwright-core";
 import { botWall } from "./classify.js";
-import { home, siteOf, writePrivate } from "./session.js";
+import { ensureDir, home, siteOf, writePrivate } from "./session.js";
 import type { Request as Hop } from "./spec.js";
 import type { CaptureResult, Exchange, StoredCookie, TriggerStep } from "./types.js";
 
-let current: { profileDir: string; headless: boolean; ctx: Promise<BrowserContext> } | undefined;
-let headlessUA: string | undefined;
+interface BrowserChoice {
+  name: string;
+  bin: string;
+  engine?: "webkit";
+}
+const require = createRequire(import.meta.url);
+let current: { profileDir: string; headless: boolean; bin: string; ctx: Promise<BrowserContext> } | undefined;
+const headlessUAs = new Map<string, string>();
+const webkitStateFiles = new WeakMap<BrowserContext, string>();
 const originPages = new Map<string, Page>();
 
 // A browser locks a profile to one process. A long-lived process (the MCP server) releases it
@@ -63,12 +71,14 @@ function hold(): () => void {
 async function launch(
   profileDir: string,
   options: Parameters<typeof chromium.launchPersistentContext>[1],
+  choice: BrowserChoice,
 ): Promise<BrowserContext> {
-  const { chromium } = await import("playwright-core");
+  const playwright = await import("playwright-core");
+  const browser = choice.engine === "webkit" ? playwright.webkit : playwright.chromium;
   const until = Date.now() + LOCK_WAIT_MS;
   for (;;) {
     try {
-      return await chromium.launchPersistentContext(profileDir, options);
+      return await browser.launchPersistentContext(profileDir, options);
     } catch (e) {
       if (!LOCKED.test((e as Error).message)) throw e;
       if (Date.now() > until) throw new ProfileInUse(profileDir);
@@ -162,9 +172,19 @@ function browserBin(e: (typeof BROWSERS)[number]): string | undefined {
  * variable, the first installed browser in the list's order. Returns undefined when nothing is
  * found, so callers skip cleanly (the plain-HTTP tier needs no browser).
  */
-export function browserChoice(): { name: string; bin: string } | undefined {
+export function browserChoice(): BrowserChoice | undefined {
   const env = process.env.API_ANYTHING_BROWSER?.trim();
   if (env) {
+    if (/^(?:playwright[-_ ]?)?webkit$/i.test(env)) {
+      // Load Playwright only for the opt-in backend; plain HTTP calls keep their cheap startup.
+      const { webkit } = require("playwright-core") as typeof import("playwright-core");
+      const bin = webkit.executablePath();
+      return existsSync(bin) ? { name: "Playwright WebKit", bin, engine: "webkit" } : undefined;
+    }
+    if (/(?:^|[/\\])(?:orion|safari)(?:\.app)?(?:$|[/\\])/i.test(env))
+      throw new Error(
+        "Orion and Safari cannot be driven by Playwright. Use API_ANYTHING_BROWSER=webkit with Playwright's patched WebKit build instead; it has its own profile, not your Orion session.",
+      );
     if (env.includes("/") || env.includes("\\")) {
       return existsSync(env) ? { name: basename(env).replace(/\.(exe|app)$/i, ""), bin: env } : undefined;
     }
@@ -191,8 +211,10 @@ export const browserAvailable = (): boolean => !!browserChoice();
 // Default headless UA says "HeadlessChrome/<v>" and x.com answers 403. sec-ch-ua already
 // carries the browser's name, so only the UA string needs the fix.
 async function probeHeadlessUA(): Promise<string> {
-  const { chromium } = await import("playwright-core");
-  const b = await chromium.launch({ executablePath: browserChoice()?.bin, headless: true });
+  const choice = selectedBrowser();
+  const playwright = await import("playwright-core");
+  const browser = choice.engine === "webkit" ? playwright.webkit : playwright.chromium;
+  const b = await browser.launch({ executablePath: choice.bin, headless: true, timeout: 30_000 });
   try {
     const p = await b.newPage();
     return (await p.evaluate(() => navigator.userAgent)).replace("HeadlessChrome", "Chrome");
@@ -208,8 +230,9 @@ async function probeHeadlessUA(): Promise<string> {
  * asked again.
  */
 export async function headlessUserAgent(): Promise<string> {
+  const selected = selectedBrowser();
   // the name from before other browsers: renaming it would orphan every install's cache
-  const file = join(home(), "chrome-ua.json");
+  const file = join(home(), selected.engine === "webkit" ? "webkit-ua.json" : "chrome-ua.json");
   let key: string | undefined;
   try {
     const choice = browserChoice();
@@ -218,7 +241,8 @@ export async function headlessUserAgent(): Promise<string> {
       key = `${choice.bin}:${s.mtimeMs}:${s.size}`;
     }
     const kept = JSON.parse(readFileSync(file, "utf8")) as { key?: unknown; ua?: unknown };
-    if (kept.key === key && typeof kept.ua === "string" && /Chrome\/\d/.test(kept.ua) && !/Headless/.test(kept.ua))
+    const family = selected.engine === "webkit" ? /AppleWebKit\/\d/ : /Chrome\/\d/;
+    if (kept.key === key && typeof kept.ua === "string" && family.test(kept.ua) && !/Headless/.test(kept.ua))
       return kept.ua;
   } catch {
     /* nothing kept, or nothing usable */
@@ -232,6 +256,59 @@ export async function headlessUserAgent(): Promise<string> {
   return ua;
 }
 
+function selectedBrowser(): BrowserChoice {
+  const choice = browserChoice();
+  if (!choice)
+    throw new Error(
+      "no selected browser is installed. Install a Chromium browser, or run npx playwright-core install webkit and set API_ANYTHING_BROWSER=webkit",
+    );
+  return choice;
+}
+
+/** WebKit itself allows simultaneous owners of a user-data directory, unlike Chromium. */
+async function lockWebKitProfile(dir: string): Promise<() => void> {
+  ensureDir(dir);
+  const file = join(dir, "api-anything.lock");
+  const token = `${process.pid}:${randomUUID()}`;
+  const until = Date.now() + LOCK_WAIT_MS;
+  for (;;) {
+    try {
+      const fd = openSync(file, "wx", 0o600);
+      try {
+        writeFileSync(fd, token);
+      } finally {
+        closeSync(fd);
+      }
+      return () => {
+        try {
+          if (readFileSync(file, "utf8") === token) rmSync(file);
+        } catch {
+          /* already removed */
+        }
+      };
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+      try {
+        const owner = readFileSync(file, "utf8");
+        const pid = Number(owner.split(":")[0]);
+        let stale = !pid && Date.now() - statSync(file).mtimeMs > LOCK_WAIT_MS;
+        if (Number.isSafeInteger(pid) && pid > 0) {
+          try {
+            process.kill(pid, 0);
+          } catch (e) {
+            stale = (e as NodeJS.ErrnoException).code === "ESRCH";
+          }
+        }
+        if (stale && readFileSync(file, "utf8") === owner) rmSync(file);
+      } catch {
+        /* another process may have just released it */
+      }
+      if (Date.now() >= until) throw new ProfileInUse(dir);
+      await sleep(500);
+    }
+  }
+}
+
 /**
  * The process-wide persistent context. A different profileDir or headless mode closes the old one
  * first, since Chrome locks a profile to one running instance.
@@ -243,28 +320,61 @@ export function openBrowser({
   profileDir: string;
   headless?: boolean;
 }): Promise<BrowserContext> {
+  const choice = selectedBrowser();
+  // Chromium and WebKit profile formats are incompatible. Never open one with the other engine.
+  if (choice.engine === "webkit") profileDir = `${profileDir}-webkit`;
   if (users === 0) scheduleIdleClose();
-  if (current && current.profileDir === profileDir && current.headless === headless) return current.ctx;
+  if (current && current.profileDir === profileDir && current.headless === headless && current.bin === choice.bin)
+    return current.ctx;
   const prev = current;
   const ctx = (async () => {
     if (prev) await closeContext(prev.ctx);
-    if (headless) headlessUA ??= await headlessUserAgent();
-    const c = await launch(profileDir, {
-      executablePath: browserChoice()?.bin,
-      headless,
-      userAgent: headless ? headlessUA : undefined,
-      viewport: headless ? undefined : null,
-      // A service worker's fetches bypass routing (so write interception) and hide requests from capture.
-      serviceWorkers: "block",
-      // Playwright's own SIGTERM handler keeps the process alive; Chrome exits with its pipe anyway.
-      handleSIGTERM: false,
-    });
+    originPages.clear();
+    let userAgent: string | undefined;
+    if (headless) {
+      userAgent = headlessUAs.get(choice.bin) ?? (await headlessUserAgent());
+      headlessUAs.set(choice.bin, userAgent);
+    }
+    const unlock = choice.engine === "webkit" ? await lockWebKitProfile(profileDir) : undefined;
+    let c: BrowserContext;
+    try {
+      c = await launch(
+        profileDir,
+        {
+          executablePath: choice.bin,
+          headless,
+          userAgent,
+          viewport: headless ? undefined : null,
+          timeout: 30_000,
+          // A service worker's fetches bypass routing (so write interception) and hide requests from capture.
+          serviceWorkers: "block",
+          // Playwright's own SIGTERM handler keeps the process alive; Chrome exits with its pipe anyway.
+          handleSIGTERM: false,
+        },
+        choice,
+      );
+      if (choice.engine === "webkit") {
+        const file = join(profileDir, "api-anything-state.json");
+        try {
+          // WebKit drops session cookies on restart even with a persistent user-data directory.
+          if (existsSync(file)) await c.setStorageState(file);
+          webkitStateFiles.set(c, file);
+        } catch (e) {
+          await c.close();
+          throw e;
+        }
+      }
+    } catch (e) {
+      unlock?.();
+      throw e;
+    }
     c.on("close", () => {
+      unlock?.();
       if (current?.ctx === ctx) current = undefined;
     });
     return c;
   })();
-  current = { profileDir, headless, ctx };
+  current = { profileDir, headless, bin: choice.bin, ctx };
   ctx.catch(() => {
     if (current?.ctx === ctx) current = undefined;
   });
@@ -273,10 +383,20 @@ export function openBrowser({
 
 async function closeContext(ctx: Promise<BrowserContext>): Promise<void> {
   try {
-    await (await ctx).close();
+    const c = await ctx;
+    try {
+      await saveWebKitState(c);
+    } finally {
+      await c.close();
+    }
   } catch {
     // launch failed or already closed
   }
+}
+
+async function saveWebKitState(ctx: BrowserContext): Promise<void> {
+  const file = webkitStateFiles.get(ctx);
+  if (file) writePrivate(file, JSON.stringify(await ctx.storageState({ indexedDB: true })));
 }
 
 /**
@@ -613,6 +733,12 @@ function requestBody(req: Request): string | undefined {
 
 /** Load the trigger in the browser and return every exchange it caused, with bodies and cookies. */
 export async function runTrigger(o: TriggerOptions): Promise<CaptureResult> {
+  // Playwright routes omit redirect hops and teardown traffic. Our complete guard needs CDP;
+  // substituting routes on WebKit would silently let some intercepted writes reach the site.
+  if (o.intercept && selectedBrowser().engine === "webkit")
+    throw new Error(
+      "guarded capture is not supported on WebKit: redirect and unload interception requires Chromium CDP. Select a working Chromium executable with API_ANYTHING_BROWSER for write learning, guarded tier-3 calls and guarded healing. No page was opened.",
+    );
   const timeout = o.timeoutMs ?? 30_000;
   const deadline = Date.now() + timeout;
   const release = hold();
@@ -1271,6 +1397,10 @@ async function loginWindow(url: string, profileDir: string, waitForEnter: boolea
       ),
     1000,
   );
+  // The user may close WebKit's last window before we can ask it for storage one last time.
+  const statePoll = webkitStateFiles.has(ctx)
+    ? setInterval(() => void saveWebKitState(ctx).catch(() => {}), 1000)
+    : undefined;
   let onEnter = () => {};
   try {
     await new Promise<void>((resolve) => {
@@ -1286,6 +1416,7 @@ async function loginWindow(url: string, profileDir: string, waitForEnter: boolea
     snapshot = await ctx.cookies().catch(() => snapshot);
   } finally {
     clearInterval(poll);
+    clearInterval(statePoll);
     if (waitForEnter) {
       process.stdin.off("data", onEnter);
       process.stdin.pause();

@@ -1,5 +1,8 @@
 # Setup and demos
 
+This local fork also supports Playwright's patched WebKit with `API_ANYTHING_BROWSER=webkit`.
+See [WebKit setup and limits](WEBKIT.md); Orion itself is not an automation backend.
+
 Use Node 22.13 or newer. Install a Chromium browser if you want to learn operations or use the
 browser tier: Google Chrome by default, or Brave, Microsoft Edge, Chromium, Vivaldi, Arc — any
 Chromium executable works, and a non-default one is named with `API_ANYTHING_BROWSER` (a name
