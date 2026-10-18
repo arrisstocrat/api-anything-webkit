@@ -167,20 +167,38 @@ export function createServer({ allowWrites = false }: { allowWrites?: boolean } 
         site: z.string(),
         op: z.string().describe("operation name from list_operations"),
         args: z.record(z.string(), z.unknown()).optional().describe("param name -> value"),
+        browser: z
+          .object({ peer: z.string().min(1), tabId: z.number().int().nonnegative() })
+          .optional()
+          .describe(
+            "Explicit installed-browser tab; uses its sign-in, sends once, never retries/heals/follows redirects",
+          ),
       },
       annotations: { readOnlyHint: !allowWrites, destructiveHint: allowWrites, openWorldHint: true },
     },
-    guarded(async ({ site, op, args }: { site: string; op: string; args?: Record<string, unknown> }) => {
-      const r = await call(site, op, args ?? {}, { allowWrites });
-      return reply(
-        {
-          ...r,
-          ...(r.data !== undefined ? { data: asTable(r.data) } : {}),
-          ...(r.next ? { next: mcpNext(r.next) } : {}),
-        },
-        !r.ok,
-      );
-    }),
+    guarded(
+      async ({
+        site,
+        op,
+        args,
+        browser,
+      }: {
+        site: string;
+        op: string;
+        args?: Record<string, unknown>;
+        browser?: { peer: string; tabId: number };
+      }) => {
+        const r = await call(site, op, args ?? {}, { allowWrites, browser });
+        return reply(
+          {
+            ...r,
+            ...(r.data !== undefined ? { data: asTable(r.data) } : {}),
+            ...(r.next ? { next: mcpNext(r.next) } : {}),
+          },
+          !r.ok,
+        );
+      },
+    ),
   );
 
   server.registerTool(

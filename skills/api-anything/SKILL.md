@@ -277,6 +277,12 @@ when showing results. For read learning, use bridge capture-start/capture-stop <
 add --from FIRST --from2 SECOND --example k=v --example2 k=w and call normally.
 Only top-frame GET/HEAD fetch/XHR after start is observed; navigation ends capture.
 CSP may block it. No cookies/storage are exported. Direct HTTP replay is verified
-on localhost; browser-session replay, healing, guarded triggers and writes are unavailable.
+on localhost. Explicit session calls: call <site> <op> ... --browser Safari --tab <id>
+(or Orion); library/MCP accepts browser:{peer,tabId}. The same-origin tab must have
+site permission. Known writes require --allow-writes, dispatch once and never
+follow redirects/retry/heal; unknown outcomes require inspecting the site before
+any further attempt. Service-worker-controlled writes and tier-3-only ops refuse.
+Guarded UI learning of new writes remains unavailable; use Chromium's existing
+guard for that stage. Never change an unguarded capture into a guarded write.
 Do not change API_ANYTHING_BROWSER to an installed Safari/Orion executable.
 Prepared connector directories contain private pairing tokens and must never be shared.

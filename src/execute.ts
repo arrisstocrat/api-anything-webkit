@@ -3,6 +3,7 @@
  * the heal-loop guards, and the write rules. Always sends the stored template first; healing is
  * reactive only.
  */
+import { type BrowserTarget, callInBrowser } from "./bridge-execute.js";
 import {
   browserAvailable,
   type PageFetchResult,
@@ -35,6 +36,8 @@ import type { StoredCookie } from "./types.js";
 export type Tier = 1 | 2 | 3;
 
 export interface CallOptions {
+  /** Explicit existing Safari/Orion tab. Bypasses fallback/healing and never retries. */
+  browser?: BrowserTarget;
   /** required for any readOnly:false op, at every entry point */
   allowWrites?: boolean;
   fetchImpl?: typeof fetch;
@@ -476,6 +479,12 @@ export async function call(
         ? `nothing was sent. Check the args; if the value is the session's, ask the user to run: api-anything login ${siteName}`
         : nextFor("input", siteName, op);
     return done({ ok: false, class: "input", reason: (e as Error).message, next });
+  }
+
+  if (opts.browser) {
+    if (opts.maxTier === 1)
+      return done({ ok: false, class: "input", reason: "--max-tier 1 forbids browser transport" });
+    return done(await callInBrowser(op, args, session, opts.browser, opts.allowWrites));
   }
 
   // No login on record for this site: the session has no source (a login records one, logout clears it),

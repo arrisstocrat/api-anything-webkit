@@ -119,7 +119,10 @@ const HELP: Record<string, string> = {
   Output: preview (what a call returns, from the captured response), warnings (read them), captures.
   replaced: an op of that name was learned again.`,
   call: `api-anything call <site> <op> [k=v ...] [--json <args-object>] [--allow-writes] [--max-tier 1|2|3] [--dry]
-  Calls an operation: {ok, class, data, tier, healed?, ms, next?}. --dry prints the request with credentials redacted.`,
+  Calls an operation: {ok, class, data, tier, healed?, ms, next?}. --dry prints the request with credentials redacted.
+  --browser <name-or-id> --tab <id> uses that permitted installed-browser tab's session.
+  This mode sends a known template once: no redirects, retries, fallback or healing.
+  Writes still need --allow-writes. It does not learn writes through Safari/Orion.`,
   verify: `api-anything verify [site]
   Calls every read operation with its stored example args, healing as needed.`,
   sites: `api-anything sites
@@ -243,6 +246,8 @@ const OPTIONS = {
   json: { type: "string" },
   "allow-writes": { type: "boolean" },
   "max-tier": { type: "string" },
+  browser: { type: "string" },
+  tab: { type: "string" },
   dry: { type: "boolean" },
   limit: { type: "string" },
   out: { type: "string" },
@@ -666,7 +671,13 @@ async function cmdCall({ v, pos }: Parsed): Promise<number> {
     return 0;
   }
   const maxTier = v["max-tier"] ? (Number(v["max-tier"]) as Tier) : undefined;
-  const r = await call(site, name, args, { allowWrites: v["allow-writes"], maxTier });
+  if (!!v.browser !== !!v.tab || (v.tab && !/^\d+$/.test(v.tab)))
+    throw new Fail("--browser and an exact --tab id must be used together", "api-anything bridge tabs <browser>");
+  const r = await call(site, name, args, {
+    allowWrites: v["allow-writes"],
+    maxTier,
+    ...(v.browser && v.tab ? { browser: { peer: v.browser, tabId: Number(v.tab) } } : {}),
+  });
   out(r);
   if (!r.ok) process.stderr.write(`next: ${r.next}\n`);
   return r.ok ? 0 : 1;
@@ -881,7 +892,7 @@ const COMMANDS: Record<string, { run: (p: Parsed) => number | Promise<number>; f
       "description",
     ],
   },
-  call: { run: cmdCall, flags: ["json", "allow-writes", "max-tier", "dry"] },
+  call: { run: cmdCall, flags: ["json", "allow-writes", "max-tier", "dry", "browser", "tab"] },
   verify: { run: cmdVerify, flags: [] },
   sites: { run: cmdSites, flags: [] },
   ops: { run: cmdOps, flags: [] },

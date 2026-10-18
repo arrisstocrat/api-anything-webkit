@@ -2,6 +2,7 @@
 const api = globalThis.browser ?? globalThis.chrome;
 const config = globalThis.API_ANYTHING_CONNECTOR;
 let busy = false;
+let initialized = false;
 function deadline(promise, stage) {
   let timer;
   return Promise.race([
@@ -26,7 +27,15 @@ async function command(c) {
     return {
       userAgent: navigator.userAgent,
       version: api.runtime.getManifest().version,
-      capabilities: { tabs: true, pageRead: true, readCapture: true, guardedCapture: false },
+      capabilities: {
+        tabs: true,
+        pageRead: true,
+        readCapture: true,
+        sessionFetch: true,
+        sessionProtocol: 4,
+        writeTemplates: true,
+        guardedCapture: false,
+      },
     };
   if (c.op === "name") {
     if (typeof c.name !== "string" || !c.name.trim() || c.name.length > 80) throw new Error("invalid connection name");
@@ -41,7 +50,7 @@ async function command(c) {
   }
   if (c.op === "tabs")
     return (await deadline(api.tabs.query({}), "tabs.query")).map(({ id, title, url }) => ({ id, title, url }));
-  if (!["read", "capture-start", "capture-status", "capture-stop"].includes(c.op))
+  if (!["read", "capture-start", "capture-status", "capture-stop", "session-fetch"].includes(c.op))
     throw new Error(
       "This connector supports ping, tabs, open, read and read capture. Guarded operations are unavailable.",
     );
@@ -53,6 +62,50 @@ async function command(c) {
   if (!/^https?:/.test(origin)) throw new Error("Only HTTP(S) pages can be read");
   if (!(await deadline(api.permissions.contains({ origins: [permission] }), "permissions.contains")))
     throw new Error("Grant access to this site's origin using the connector popup first");
+  if (c.op === "session-fetch") {
+    const request = globalThis.validateSessionRequest(c.request, origin, c.allowWrites);
+    let ready = false;
+    const readyUntil = Date.now() + 4000;
+    while (Date.now() < readyUntil) {
+      const info = (
+        await deadline(api.tabs.executeScript(c.tabId, { file: "session-info.js" }), "session readiness")
+      )[0];
+      if (info?.ready === "complete" && info.origin === origin && info.storage === "function") {
+        ready = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    if (!ready) throw new Error("Tab is not ready for a session request; nothing was dispatched");
+    const id = crypto.randomUUID();
+    try {
+      await api.storage.local.set({ __apiAnythingSessionPending: { ...request, id } });
+      const started = (
+        await deadline(api.tabs.executeScript(c.tabId, { file: "session-fetch.js" }), "session start")
+      )[0];
+      if (!started?.started) {
+        await api.storage.local.remove("__apiAnythingSessionPending");
+        throw new Error("Session request setup failed; no retry attempted");
+      }
+      // Poll only the result. Neither navigation nor timeout ever re-dispatches a request.
+      const resultUntil = Date.now() + 18_000;
+      while (Date.now() < resultUntil) {
+        const result = (
+          await deadline(api.tabs.executeScript(c.tabId, { file: "session-result.js" }), "session result")
+        )[0];
+        if (!result || (result.id !== id && !(result.pending && !result.id)))
+          throw new Error("Session request context changed; no retry attempted");
+        if (!result.pending) {
+          if (result.error || !result.value) throw new Error("Browser request failed; it has not been retried");
+          return result.value;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      throw new Error("Session request timed out; no retry attempted");
+    } finally {
+      await api.storage.local.remove("__apiAnythingSessionPending");
+    }
+  }
   const inject = async (file) => (await deadline(api.tabs.executeScript(c.tabId, { file }), "tabs.executeScript"))[0];
   if (c.op === "capture-stop") {
     await inject("capture-stop.js");
@@ -81,6 +134,10 @@ async function loop() {
   if (!config || busy) return;
   busy = true;
   try {
+    if (!initialized) {
+      await api.storage.local.remove("__apiAnythingSessionPending");
+      initialized = true;
+    }
     let saved = await api.storage.local.get(["connectionId", "browserName", "connected"]);
     if (saved.connected === undefined && config.autoConnect) {
       const name =

@@ -758,7 +758,7 @@ copy contains a private browser token; it must never be exported. A separate pri
 authorizes CLI requests. Peers are explicit, ambiguous names fail, commands are delivered once,
 and dispatched commands are never automatically retried. Web origins and non-loopback Host values
 are rejected. The extension supports connection checks, tab listing and explicitly permitted DOM
-reads; per-origin grants are requested from its popup. Guarded capture and writes are refused.
+reads; per-origin grants are requested from its popup. Guarded UI capture is refused. Explicit known-template writes have the separate single-dispatch policy below.
 
 
 The connector can observe top-frame GET/HEAD fetch/XHR after explicit capture-start
@@ -767,4 +767,19 @@ They restore original functions on stop/expiry. CSP refusal and navigation loss 
 explicit failures. Bounded page-visible exchanges (not full wire traffic) are
 validated and saved as private captures for the unchanged two-example learner.
 Cookies/storage are absent; direct HTTP replay of public reads is supported.
-This does not provide write guards or automatic browser-session replay/healing.
+This capture observer does not provide write guards or automatic healing; explicit session calls are defined below.
+
+
+Explicit installed-browser calls (`CallOptions.browser`, CLI --browser/--tab, MCP
+browser target) bypass the tier ladder, re-import and healing. They use a selected
+permitted tab's isolated fetch with credentials:include, redirect:error and no
+application-level retries. Known writes need allowWrites at every entry point,
+including GET operations classified as writes; read-only POST queries retain their
+stored classification. Exact tab origin is mandatory; browser-controlled headers
+are stripped. Page scripts cannot supply a request via DOM events. A temporary
+extension-storage payload is removed on consumption and in the background finally
+block. It is never returned or exported. Results are bounded and polled by request
+id; polling never re-dispatches. A controlled service-worker page refuses writes.
+An ambiguous write outcome asks for inspection and never suggests a blind retry.
+This executes known templates, not UI triggers; guarded learning of new writes in
+Safari/Orion remains refused. No blanket network guard is claimed.

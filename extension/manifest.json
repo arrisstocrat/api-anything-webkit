@@ -1,12 +1,12 @@
 {
   "manifest_version": 2,
   "name": "API Anything Connector",
-  "version": "0.1.4",
+  "version": "0.1.6",
   "description": "Connect this browser to your local API Anything bridge. Experimental; guarded capture is unavailable.",
   "permissions": ["tabs", "storage", "activeTab", "http://127.0.0.1/*"],
   "optional_permissions": ["http://*/*", "https://*/*"],
   "background": {
-    "scripts": ["config.js", "background.js"],
+    "scripts": ["config.js", "session-request.js", "background.js"],
     "persistent": true
   },
   "browser_action": {
